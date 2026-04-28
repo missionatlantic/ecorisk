@@ -12,6 +12,7 @@ Implementation of a modular framework for ecosystem risk assessments, combining 
 Useful links:
 \itemize{
   \item \url{https://github.com/HeleneGutte/ecorisk}
+  \item \url{https://helenegutte.github.io/ecorisk/}
   \item Report bugs at \url{https://github.com/HeleneGutte/ecorisk/issues}
 }
 

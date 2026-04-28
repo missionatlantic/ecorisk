@@ -321,7 +321,7 @@ derive the final risk scores. The risk scores can the be combined to
 higher complexity level, i.e. cumulative effects of the pressures,
 cumulative impacts on the indicators and ecosystem risk scores.
 
-# The ecorisk package theory {#ecorisk}
+# The ecorisk package theory {#ecorisk-theory}
 
 The ecorisk package supports the ecorisk framework [@gutte2026]. It provides 
 functions for the semiquantitative expert scoring

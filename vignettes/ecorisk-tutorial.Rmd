@@ -1,0 +1,589 @@
+---
+title: "Tutorial"
+output: html_document
+bibliography: references.bib
+link-citations: TRUE
+---
+
+```{r, include = FALSE, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup, echo = FALSE, include = FALSE}
+library(ecorisk)
+```
+
+```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.scroll-100 {
+  max-height: 100px;
+  overflow-y: auto;
+  background-color: inherit;
+}
+```
+
+This tutorial walks you through a complete risk assessment using the
+ecorisk package with provided demo datasets. For background on the
+underlying framework and theory, see the [Background & Framework](ecorisk-background.html) article.
+
+# Scenario
+
+Let's suppose we want to conduct a risk assessment for a fictional
+marine ecosystem. We want to investigate whether the system is at risk
+of being in an undesired state due to 5 ongoing pressures:
+
+-   Temperature increase due to climate change
+-   Salinity decrease due to climate change
+-   A decreasing nutrient input after a phase of eutrophication
+-   Oxygen depletion
+-   Fishing pressure
+
+To best represent our ecosystem we choose state indicators from
+different trophic levels: phytoplankton, zooplankton, two fish species
+(herring and cod), and seabirds. For some of these we have more or less
+detailed expert knowledge and for some of them we have time series
+representing this state indicator. Thus we decide on the following
+assessment scheme using both the expert scoring and the modelling
+pathway of ecorisk:
+
+```{r indicator overview, echo = FALSE}
+ind_data <- data.frame(
+  Trait = c("Cod", " Herring"), 
+  General = c("Phytoplankton", "Seabirds"),
+  Model = c("Cod spawning stock biomass", "Zooplankton mean size")
+)
+
+knitr::kable(ind_data, booktabs = TRUE) |>
+  kableExtra::add_header_above(c("Expert scoring pathway" = 2, 
+    "Modelling pathway" = 1)) 
+```
+
+For the two fish species enough knowledge is available for a detailed
+expert scoring using species traits. Phytoplankton and seabirds are
+larger species groups, a scoring on a trait basis would be very
+difficult, therefore the experts will give here only one general score
+for sensitivity and adaptive capacity of these two groups. The time
+series we want to use for the modeling approach are i) spawning stock
+biomass of the cod stock as indicator for the health of the species and
+ii) zooplankton mean size which represents the status of the zooplankton
+group and gives an indication about the status of the food web. The
+pressures will be assessed using both pathways.
+
+# Data preparation
+
+First step is to create the scoring tables, which will be filled out by
+our experts. With the functions `create_template_exposure()` and
+`crt_sensitivity()`, we can automatically create tables for further
+usage in the ecorisk workflow. The functions need the names of the
+pressures and for sensitivity also the names of the indicators. For
+exposure we want to investigate 4 components:
+
+-   The magnitude of change,
+
+-   the future trend,
+
+-   the frequency of the change and
+
+-   the spatial coverage of the change in the ecosystem.
+
+To define vulnerability the experts should score the sensitivity and the
+adaptive capacity. They should differentiate between two types of
+effect: direct effects only and the combination of direct and indirect
+effects. Indirect effects occur for example due to food web
+interactions. If possible the experts will score four individual species
+traits:
+
+-   Feeding
+
+-   Behaviour
+
+-   Reproduction
+
+-   Habitat
+
+otherwise they will give general sensitivity and adaptive capacity
+scores. Both the exposure and the sensitivity scoring include an
+uncertainty assessment. As a second step we rename the variables in our
+scoring templates.
+
+```{r create tables, class.output="scroll-100"}
+exposure_scoring <- create_template_exposure(
+  pressures = c("temperature", "salinity", "oxygen", "nutrient", "fishing"),
+  n_components = 4, 
+  mode_uncertainty = "component"
+)
+names(exposure_scoring)
+# Rename exposure components
+names(exposure_scoring)[2:9] <- c("magnitude", "frequency", "trend", "spatial",
+                                  "uncertainty_magnitude", "uncertainty_frequency",
+                                  "uncertainty_trend", "uncertainty_spatial")
+
+sensitivity_scoring <- create_template_sensitivity(
+  indicators = c("phytoplankton", "herring", "cod", "seabirds"),
+  pressures = c("temperature", "salinity", "oxygen", "nutrient", "fishing"),
+  type = c("direct", "direct_indirect"),
+  n_sensitivity_traits = 5,
+  mode_adaptive_capacity = "trait",
+  mode_uncertainty = "trait"
+)
+names(sensitivity_scoring)
+
+# Replace the generic trait names ('...trait_1', '...trait_2') with
+# the actual trait names
+names(sensitivity_scoring) <- names(sensitivity_scoring) |> 
+  stringr::str_replace("trait_1$", "feeding") |> 
+  stringr::str_replace("trait_2$", "behaviour") |> 
+  stringr::str_replace("trait_3$", "reproduction") |> 
+  stringr::str_replace("trait_4$", "habitat") |> 
+  stringr::str_replace("trait_5$", "general") 
+```
+
+The experts have filled out the scoring tables in a joint exercise, thus
+we do not have to aggregate the individual expert scores. If individual
+expert scores are given, it is recommended to follow the work flow until
+the risk calculation and aggregation of risk scores is completed and
+then aggregate these scores across all experts. This allows for more
+precise and detailed results, as differences in the results between
+experts can be evaluated.
+
+```{r read expert scores}
+exposure_scoring <- ex_expert_exposure
+head(exposure_scoring)
+sensitivity_scoring <- ex_expert_sensitivity
+head(sensitivity_scoring)
+```
+
+The experts followed this scoring scheme:
+
+-   Exposure 1–5 (low to high)
+
+-   Sensitivity −5–5 (high negative to high positive influence)
+
+-   Adaptive capacity −1–1 (low to high)
+
+-   Uncertainty 1–3 (low to high)
+
+For more information about this scheme see also the [Scoring](ecorisk-background.html#scoring) section in the Background article.
+This scoring scheme aligns with the results of the modelling pathway.
+
+To prepare the modelling pathway we load our time series data. The data
+includes indicator variables for our five pressures and two state
+indicators (cod and zooplankton). The data covers a time frame from 1984
+to 2016. The data was created based on trends of similar indicators from
+the Baltic Sea. There is another example data set with data from the
+North Sea.
+
+```{r read time series data}
+ts_pressures <- pressure_ts_baltic
+head(ts_pressures)
+ts_indicators <- indicator_ts_baltic
+head(ts_indicators)
+```
+
+# Analysis
+
+Now we will calculate exposure and sensitivity scores in both pathways.
+We start with the expert scoring pathway using the functions
+`calc_exposure()` and `calc_sensitivity()`. They calculate from the
+exposure components and sensitivity trait scores general scores using an
+aggregation method selected by the user. We will use the arithmetic mean
+to aggregate component and trait scores. Other options are median,
+minimum or maximum.
+
+```{r exposure and sensitivity expert pathway, echo = TRUE}
+exp_expert <- calc_exposure(
+  pressures = exposure_scoring$pressure, 
+  components = exposure_scoring[ ,2:5],
+  uncertainty = exposure_scoring[ ,6:9],
+  method = "mean"
+)
+head(exp_expert)
+
+sens_ac_expert <- calc_sensitivity(
+  indicators = sensitivity_scoring$indicator, 
+  pressures = sensitivity_scoring$pressure,
+  type = sensitivity_scoring$type,
+  sensitivity_traits = sensitivity_scoring[ ,4:8],
+  adaptive_capacities = sensitivity_scoring[ ,9:13],
+  uncertainty_sens = sensitivity_scoring[ ,14:18],
+  uncertainty_ac = sensitivity_scoring[ ,19:23], 
+  method = "mean"
+)
+head(sens_ac_expert)
+```
+
+Both data sets now contain the aggregated expert scores. The sensitivity
+dataset also contains the initial expert scores, thus we can still
+calculate vulnerability for each trait individually, which will lead to
+more precise results. Additionally the last column gives information
+about the pathway of the scores to compare later on the results from
+both pathways.
+
+In the modelling pathway we use the functions `model_exposure()` and
+`model_sensitivity()`. To assess exposure based on a time series we have
+to define a period where baseline conditions are assumed, the baseline
+conditions are then compared to the conditions in the assessment time
+period. In this tutorial the baseline is set to the first 10 years of
+the time series and the assessment time period are the last 5 years of
+the time series. Since baseline conditions are considered as "good" for
+our ecosystem all pressures should return to baseline conditions, we
+specify this with the argument trend. The spatial scale cannot be
+assessed with temporal data only, thus we have to specify the scores. We
+use here the same value for the spatial component that the experts gave
+for the pressures in the expert scoring.
+
+```{r model exposure}
+exposure_model <- model_exposure(
+  pressure_time_series = ts_pressures,
+  base_years = c(start = 1984, end = 1993),
+  current_years = c(start = 2007, end = 2016),
+  trend = "return", 
+  spatial = c(2, 2, 5, 5, 3, 3, 2, 2)
+)
+exposure_model
+```
+
+The output gives us the aggregated exposure score, which is the
+arithmetic mean of all exposure components. These are the same
+components that have been evaluated by our experts. The
+`model_exposure()` function does not evaluate the associated
+uncertainty.
+
+We should check for all pressures if the direction is capturing the
+correct dynamics and not only a short term fluctuation.
+
+To assess sensitivity with time series data we also have to specify the
+assessment time period to determine if the pressure has in the
+assessment time period a negative or positive influence on the state
+indicator. The influence is determined using a simple linear model, so
+we can simply check if the direction was correctly determined using a
+simple plot. First we set up a data frame specifying for each indicator
+pressure combination the assessment time period.
+
+```{r model sensitivity}
+sens_ac_model <- model_sensitivity(
+  indicator_time_series = ts_indicators, 
+  pressure_time_series = ts_pressures,
+  current_years = c(start = 2010, end = 2016)
+)
+sens_ac_model
+```
+
+The output of the function contains for each indicator and pressure
+combination the type of effect, the sensitivity score, the uncertainty
+associated with the uncertainty scoring and the model parameters that
+are used for the sensitivity scoring. The function evaluates sensitivity
+using a generalized additive model, if it is significant the $R^2$ value
+is used to set a score between 1 and 5. For non-significant models the
+score is set to 0. The edf score evaluates non-linearity of the
+relationships, as these are more risky, the sensitivity will be
+increased for edf scores > 1, but maximum to 5.
+
+The scoring of sensitivity heavily relies on generalized additive models,
+therefore it is important to inspect model diagnostics of the applied
+models. The function `plot_diagnostic_sensitivity()` creates for each
+state and pressure indicator combination four diagnostic plots.
+
+```{r model diagnostics sensitivity}
+plot_diagnostic_sensitivity(
+   indicator_time_series = ts_indicators[, c(1:2)],
+   pressure_time_series = ts_pressures[, c(1:2)]
+)
+```
+
+Let's continue by calculating the vulnerability for both pathways with
+the function `vulnerability()`. The vulnerability function combines
+exposure, sensitivity and adaptive capacity into the vulnerability
+score. For negative sensitivity score the following function applies:
+
+$V = (S + AC) - E$ and for positive scores:
+
+$V = (S + AC) + E$,
+
+where V = vulnerability, S = sensitivity, AC = adaptive capacity and E =
+exposure. For trait based scoring this will be done for each trait
+individually. The vulnerabilities of each trait will then be aggregated;
+we can decide with the parameter `method_v` if we want to use an
+arithmetic mean, median, minimum or maximum for the aggregation, same
+applies for aggregation of trait based uncertainty scores.
+
+```{r vulnerability}
+vuln_experts <- vulnerability(
+  exposure_results = exp_expert, 
+  sensitivity_results = sens_ac_expert,
+  method_vulnerability = "mean",
+  method_uncertainty = "mean"
+)
+
+vuln_model <- vulnerability(
+  exposure_results = exposure_model, 
+  sensitivity_results = sens_ac_model,
+  method_vulnerability = "mean",
+  method_uncertainty = "mean"
+)
+
+head(vuln_experts)
+head(vuln_model)
+```
+
+The output of the vulnerability gives us for each indicator pressure
+type combination the vulnerability score with its associated uncertainty
+and the pathway with which the vulnerability has been determined.
+
+To calculate the risk we need to know whether the indicator is currently
+in a good or undesired state, since the risk to be in an undesired state
+is higher if the indicator is already in it. Status can be determined by
+the experts or using the time series of the indicator. Our experts have
+assessed that phytoplankton and seabirds are currently in a good state,
+but herring and cod unfortunately not. An undesired state gets a score
+of −1 and a good state of +1.
+
+```{r status experts}
+status_experts <- data.frame(
+  indicator = c("phytoplankton", "herring", "cod", "seabirds"), 
+  status = c("good", "undesired", "undesired", "good"),
+  score = c(1, -1, -1, 1)
+)
+status_experts
+```
+
+In the modelling pathway the function `status()` evaluates indicator
+status based on time series. To assess the status we have to set
+baseline conditions where the indicator is assumed to be in a good
+status and our assessment time frame for which the status shall be
+evaluated (similar to the `model_exposure()` function). Additionally we
+can set a range around the baseline mean which is considered as good
+status. We can specify whether it is undesired if the indicator is in
+the assessment time period below or above this range using the arguments
+`sign` and `condition`. For our status assessment we assume good
+baseline conditions in the first ten years as the mean ± 1 standard
+deviation. Undesired status is defined as being below 1 standard
+deviation so we set `sign = "-"` and `condition = "<"`.
+
+```{r status model}
+status_model <- status(
+  indicator_time_series = ts_indicators,
+  base_years = c(start = 1984, end = 1993),
+  current_years = c(start = 2012, end = 2016),
+  sign = "-", 
+  condition = "<"
+)
+status_model
+```
+
+Both of our indicators are in the assessment time period in an undesired
+status.
+
+Now we combine vulnerability and status to the final risk scores. Both
+pathways use the function `risk()`.
+
+```{r risk}
+risk_expert <- risk(
+  vulnerability = vuln_experts, 
+  status = status_experts
+)
+risk_model <- risk(
+  vulnerability = vuln_model, 
+  status = status_model
+)
+
+head(risk_expert)
+head(risk_model)
+```
+
+The output of the risk function gives us per indicator–pressure–type
+combination the risk, calculated from vulnerability and status, as well
+as the uncertainty associated with the risk evaluation. Before we
+combine both data frames we will rename the pressure variables of the
+model based risk assessment to align with the names of the expert based
+assessment. This is necessary to correctly aggregate the risk values per
+pressure to multi pressure risk scores. Furthermore we will select for
+each pressure, which has more than one variable, one of them. We follow
+here a precautionary approach, thus we will select the one posing the
+highest risk.
+
+```{r rename and select pressure variables model pathway}
+risk_model <- risk_model[c(1, 3, 5, 7, 8, 9, 12, 14:16), ]
+risk_model$pressure <- c(
+  "nutrient", "temperature", "salinity", "oxygen", "fishing",   # for zooplankton
+  "nutrient", "temperature", "salinity", "oxygen", "fishing")   # for cod
+```
+
+Now we combine both risk assessment data sets and aggregate them to get
+multi pressure, multi indicator and ecosystem risk scores. The
+aggregated score will automatically be calculated per pathway, type,
+pathway and type, and without accounting for type or pathway.
+
+```{r aggregate pathways and risks}
+risks <- rbind(risk_expert, risk_model)
+
+aggregated_risk <- aggregate_risk(
+  risk_results = risks, 
+  method = "mean"
+)
+
+aggregated_risk$multi_indicator_risk
+aggregated_risk$multi_pressure_risk
+```
+
+The aggregated risk scores are in three lists:
+
+-   One with all risks aggregated per pressure,
+
+-   one aggregated per indicator and
+
+-   one with the ecosystem risk, which is an aggregation of all multi
+    pressure risk scores.
+
+In all lists the scores are first aggregated per type and pathway, then
+per type regardless of the pathway, then per pathway regardless of the
+type and as last regardless of the type and pathway.
+
+# Results
+
+To get an easier overview of the results and help with the
+interpretation ecorisk provides two plotting functions `plot_radar()`
+and `plot_heatmap()`.
+
+The first one creates for each indicator a radar plot with the risk
+scores per pressure and type. In the centre it shows the aggregated
+multi-pressure risk; we have to select which we want to use. This plot
+helps to identify per indicator the most influencing pressures and
+compare results from different types. If uncertainty has been assessed
+this will be displayed as a ring around the radar plot. In this example
+we will use the aggregated score of direct and indirect effects,
+regardless of the pathway. These are assumed to better reflect reality
+compared to direct effects only.
+
+```{r plot radar, fig.width=6, fig.height=6}
+p_radar <- plot_radar(
+  risk_scores = risks,
+  aggregated_scores = aggregated_risk,
+  type = "direct_indirect", 
+  pathway = "combined"
+)
+
+p_radar[[1]]
+p_radar[[2]]
+p_radar[[3]]
+p_radar[[4]]
+p_radar[[5]]
+p_radar[[6]]
+```
+
+All of the indicators have a negative multi-pressure score. The
+indicators assessed with the expert scoring pathway show a higher risk
+due to the combined direct and indirect effects compared to direct
+effects only. The uncertainty is generally lower in the modelling
+pathway. Comparing the modelling and expert pathway for cod it is
+noticeable that both have a similar multi-pressure score but the
+individual risk scores are quite different: The experts assessed fishing
+as the most influencing pressure, whereas in the modelling pathway
+salinity is considered as the pressure with the highest impact. To
+directly compare modelling and expert pathway for cod we can correlate
+them in a plot:
+
+```{r correlation plot, fig.width=6, fig.height=6}
+temp <- risks[c(26:30, 45:49), c(1, 2, 7)]
+temp <- temp |>
+  tidyr::pivot_wider(names_from = indicator, values_from = risk)
+
+ggplot2::ggplot(dat = temp, 
+    ggplot2::aes(x = cod, y = eastern_baltic_cod, colour = pressure)) +
+  ggplot2::geom_point() +
+  ggplot2::geom_abline(slope = 1, intercept = 0) +
+  ggplot2::xlim(-10, 10) + 
+  ggplot2::ylim(-10,10) +
+  ggplot2::labs(x = "Expert-based pathway", y = "Modelling-based pathway") +
+  ggplot2::theme_minimal()
+```
+
+We can see that the risk scores for nutrients, oxygen and temperature
+are quite similar for both pathways. But the values for salinity
+indicate no risk in the modelling pathway. This might be due to a
+salinity time series that does not catch the ongoing dynamics, and thus
+resulting in a non-significant relationship between pressure and
+indicator. The scores for fishing have even opposing directions; this
+could be due to a different understanding of fishing and the future
+developments: In the modelling pathway it has been shown that fishing is
+decreasing, which will be positive for the indicators, thus in the
+future it will have a positive effect. But the expert probably assumed
+that fishing will always have negative effects, without considering the
+positive development of the decreasing fishing pressure. This is a
+linguistic uncertainty, which should have been discussed in the planning
+and scoping phase of the assessment, to ensure that all have a common
+understanding. Nevertheless we should reiterate with our experts as well
+as check if the `model_sensitivity()` and `model_exposure()` functions
+have correctly determined the effect direction.
+
+The function `plot_heatmap()` creates for each assessment type a heatmap
+of all pressure indicator combinations, optionally with the associated
+uncertainty. The aggregated multi-pressure and indicator scores are
+shown at the bottom and to the left of the heatmap as well as the
+system risk score at the bottom right. For the aggregated scores we have
+to choose which one we want to use as we already did for the
+`plot_radar()` function. This function gives a complete overview of the
+system dynamics allowing to easily compare ecosystems and determine by
+which indicators and pressures ecosystem risk is driven.
+
+```{r plot heatmap, fig.width=8, fig.height=9}
+p_heat <- plot_heatmap(
+  risk_scores = risks,
+  aggregated_scores = aggregated_risk,
+  uncertainty = TRUE
+)
+
+p_heat[[1]]
+p_heat[[2]]
+```
+
+The first heatmap includes only direct effects, thus this heatmap is a
+bit smaller as we did not assess for all indicators direct effects only.
+The multi pressure and indicator scores are the aggregated direct scores
+for all assessed pathways. The grey frame around the heatmap tiles show
+the uncertainty associated with the score. We can see with this heatmap
+that cod is the indicator most at risk, this risk is due to high effects
+of fishing and temperature. The least at risk indicators are
+phytoplankton and seabirds. Both are not affected by several of the
+pressures, but still seabirds are at a medium to high risk due to
+fishing. The second heatmap shows the direct and indirect effects
+including also the indicator which were assessed with the modelling
+pathway. Again the cod indicator is most at risk, followed by the
+modelled cod indicator, herring and seabirds. The pressures with the
+highest negative impact are temperature and fishing. Zooplankton is an
+example for an indicator which will likely thrive under the pressures.
+It is still worthwhile to include such indicators in a risk assessment
+as these positive changes in one indicator can have negative effects for
+the entire system, thus every change can bear a risk for the system.
+Overall the system is a bit more at risk considering the combination of
+direct and indirect effects compared to direct effects only.
+
+What can we do now with the results of our risk assessment? Here are
+some examples:
+
+-   We can inform the management by prioritizing which pressures pose
+    the highest risk and which indicators are most at risk.
+-   We can use the information to guide research: did any effect come by
+    surprise (especially from the modelling pathway)? Which risks are
+    associated with high uncertainties?
+-   If we are interested in non-linear effects and how indicators and
+    pressures interact with each other we could use our results as a
+    basis for a network analysis and develop questions based on the risk
+    assessment output or select specific indicator and pressure
+    combinations that we want to further investigate with a more
+    quantitative analysis.
+
+# Contact
+
+If you have issues with the package or questions please send an e-mail
+to:
+[helene.gutte\@uni-hamburg.de](mailto:helene.gutte@uni-hamburg.de){.email}
+
+# References {#references}
