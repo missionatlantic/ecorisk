@@ -12,3 +12,5 @@
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$
+^vignettes/ecorisk-background\.Rmd$
+^vignettes/ecorisk-tutorial\.Rmd$

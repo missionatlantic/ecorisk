@@ -1,4 +1,92 @@
 url: https://helenegutte.github.io/ecorisk/
 template:
   bootstrap: 5
+  # bslib:
+  #   navbar-bg: "#5F5F5F"
+  #   navbar-light-color: "#FFFFFF"
+  #   navbar-light-active-color: "#28A745"
+  #   navbar-light-hover-color: "#3498DB"
 
+home:
+  sidebar:
+    structure: [links, license, community, citation, authors, dev]
+    
+navbar:
+  logo:
+    image: man/figures/ecorisk_logo.png
+    href: https://helenegutte.github.io/ecorisk/
+  structure:
+    left:  [articles, reference, news]
+    right: [publication, search, github]
+  components:
+    articles:
+      text: Articles
+      menu:
+      - text: Background & Framework
+        href: articles/ecorisk-background.html
+      - text: Get started
+        href: articles/ecorisk-tutorial.html
+    publication:
+      text: Publication
+      href: https://www.sciencedirect.com/science/article/pii/S2352711026001056
+      icon: fa-file-lines
+
+articles:
+  - title: ~
+    navbar: "Background & Framework"
+    contents:
+      - "ecorisk-background"
+  - title: ~
+    navbar: "Get started"
+    contents:
+      - "ecorisk-tutorial"
+
+reference:
+  - title: "Expert scoring pathway"
+    desc: "Functions for the semiquantitative expert scoring pathway."
+    contents:
+      - create_template_exposure
+      - create_template_sensitivity
+      - calc_exposure
+      - calc_sensitivity
+  - title: "Modelling pathway"
+    desc: "Functions for the quantitative time-series based pathway."
+    contents:
+      - model_exposure
+      - model_sensitivity
+      - plot_diagnostic_sensitivity
+  - title: "Joint pathway"
+    desc: "Functions shared by both pathways for vulnerability, status, risk, and aggregation."
+    contents:
+      - vulnerability
+      - status
+      - risk
+      - aggregate_risk
+  - title: "Visualisation"
+    desc: "Plotting functions for results communication."
+    contents:
+      - plot_radar
+      - plot_heatmap
+  - title: "Example input data"
+    desc: "Expert scores and time series used in the tutorial."
+    contents:
+      - ex_expert_exposure
+      - ex_expert_sensitivity
+      - ex_expert_status
+      - indicator_ts_baltic
+      - pressure_ts_baltic
+      - pressure_ts_northsea
+  - title: "Example output data"
+    desc: "Pre-computed function outputs for illustration and testing."
+    contents:
+      - ex_output_calc_exposure
+      - ex_output_calc_sensitivity
+      - ex_output_model_exposure
+      - ex_output_model_sensitivity
+      - ex_output_vulnerability_expert
+      - ex_output_vulnerability_model
+      - ex_output_status
+      - ex_output_risk_expert
+      - ex_output_risk_model
+      - ex_output_aggregate_risk_expert
+      - ex_output_aggregate_risk_model

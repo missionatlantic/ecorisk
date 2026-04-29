@@ -1,10 +1,10 @@
 ---
-title: "Ecorisk"
+title: "ecorisk"
 output: rmarkdown::html_vignette
-bibliography: references_masterthesis.bib
+bibliography: references.bib
 link-citations: TRUE
 vignette: >
-  %\VignetteIndexEntry{Ecorisk}
+  %\VignetteIndexEntry{ecorisk}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 editor_options: 
@@ -21,7 +21,6 @@ knitr::opts_chunk$set(
 
 ```{r setup, echo = FALSE, include = FALSE}
 library(ecorisk)
-
 ```
 
 ```{css, echo=FALSE}
@@ -38,7 +37,7 @@ pre {
 }
 ```
 
-![](images/ecorisk_logo.png){width="300"}
+<img src="images/ecorisk_logo.png" alt="ecorisk logo" align="right" width="100" height="112"/>
 
 ## Outline
 
@@ -226,8 +225,8 @@ risk assessment go to [chapter 2](#risk-intro) and [chapter
 
 ## Brief summary of package and workflow {#summary}
 
-The ecorisk package supports the ecorisk framework (Gutte et al., in
-prep) by providing tools for analysis, assessment and communication. The
+The ecorisk package supports the ecorisk framework [@gutte2026] by providing  
+tools for analysis, assessment and communication. The
 workflow starts with two pathways, which are later on combined to one.
 One pathway provides functions for expert scoring approaches, the other
 for risk assessments based on time series data. Both pathways analyse
@@ -322,10 +321,10 @@ derive the final risk scores. The risk scores can the be combined to
 higher complexity level, i.e. cumulative effects of the pressures,
 cumulative impacts on the indicators and ecosystem risk scores.
 
-# The ecorisk package theory {#ecorisk}
+# The ecorisk package theory {#ecorisk-theory}
 
-The ecorisk package supports the ecorisk framework (Gutte et al., in
-prep.). It provides functions for the semiquantitative expert scoring
+The ecorisk package supports the ecorisk framework [@gutte2026]. It provides 
+functions for the semiquantitative expert scoring
 and a time series based quantitative approach. Ecorisk supports the
 integration of different knowledge types, iterative risk assessment
 processes and the analysis of integrated indicators. The ecorisk
@@ -334,7 +333,11 @@ depending on the data input. In each pathway individual indicator
 pressure combinations are analysed for their risk. The pathways are
 combined again for the assessment of vulnerability and risk.
 
-![Figure 1: Workflow of the ecorisk package.](images/Figure1_workflow.png){width="600", height = "800"}
+
+```{r workflow-figure, echo=FALSE, fig.cap="Figure 1: Workflow of the ecorisk package.", out.width="80%"}
+knitr::include_graphics("images/Figure1_workflow.png")
+```
+
 
 ## Risk assessment analysis {#ra-analyis}
 
@@ -342,9 +345,9 @@ For the risk assessment with the ecorisk package the user should have
 conducted an expert scoring exercise or prepared time series to analyse.
 Example data sets can be found in the ecorisk package. Templates for
 exposure and a sensitivity and adaptive capacity scoring can be created
-using the functions `create_template_exposure()` and `crt_sensitivity()`. The output
+using the functions `create_template_exposure()` and `create_template_sensitivity()`. The output
 can be saved as csv or excel file. After they have been filled out by
-the experts, they can directly be anayzed further with the ecorisk
+the experts, they can directly be analyzed further with the ecorisk
 workflow. 
 
 ### Expert based semiquantitative pathway {#analysis_score}
@@ -505,7 +508,7 @@ pressures will be assessed using both pathways.
 
 First step is to create the scoring tables, which will be filled out by
 our experts. With the functions `create_template_exposure()` and
-`crt_sensitivity()`, we can automatically create tables for further
+`create_template_sensitivity()`, we can automatically create tables for further
 usage in the ecorisk workflow. The functions need the names of the
 pressures and for sensitivity also the names of the indicators. For
 exposure we want to investigate 4 components:
